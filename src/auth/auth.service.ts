@@ -23,11 +23,14 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @InjectModel(UserSession.name) private readonly userSessionModel: Model<UserSession>,
     private readonly redisService: RedisService,
+    
+
   ) {}
 
  
     async getToken(loginRequest: LoginRequest): Promise<LoginResponse> {
     try {
+     
       const accessToken = await this.createToken(loginRequest, 'access');
       const refreshToken = await this.createToken(loginRequest, 'refresh');
 
@@ -45,6 +48,7 @@ export class AuthService {
      
       return { accessToken, refreshToken };
     } catch (error) {
+      
       throw new HttpException(GRPC_ERROR_MESSAGES.LOGIN_FAILED,
         HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
     }
@@ -57,6 +61,7 @@ export class AuthService {
       });
   
       const { userId, deviceId } = decoded;
+      
       const session = await this.userSessionModel.findOne({
         userId,
         deviceId,
@@ -65,6 +70,7 @@ export class AuthService {
       });
   
       if (!session) {
+       
         throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
       }
       const accessToken = await this.createToken(
@@ -75,13 +81,14 @@ export class AuthService {
   
       return { accessToken };
     } catch (error) {
+      
       if (error instanceof HttpException) {
         throw error;
       }
   
       throw new HttpException(
         GRPC_ERROR_MESSAGES.SERVICE_UNAVAILABLE ,
-  HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
+        HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -94,7 +101,7 @@ export class AuthService {
       });
   
       const { userId, deviceId } = decoded;
-  
+      
       await this.redisService.deleteAccessToken(userId, deviceId);
       await this.userSessionModel.updateOne(
         { userId, deviceId, active: true },
@@ -103,7 +110,7 @@ export class AuthService {
   
       return { success: true };
     } catch (error) {
-      console.log(error)
+      
       if (error instanceof HttpException) {
         throw error;
       }
@@ -116,23 +123,33 @@ export class AuthService {
   async validateAccessToken(validateToken: ValidateAccessTokenRequest): Promise<ValidateAccessTokenResponse> {
     try {
       const { accessToken } = validateToken;
+      console.log("accessToken",accessToken)
   
       const decoded = this.jwtService.verify(accessToken, {
         secret: JWT.ACCESS_TOKEN_SECRET,
       });
+      console.log("decoded",decoded);
   
       const { userId, deviceId } = decoded;
-  
+      
       const storedToken = await this.redisService.getAccessToken(userId, deviceId);
-      if (!storedToken || storedToken !== accessToken) {
+    
+      //redis data acess
+console.log(storedToken)
+console.log(accessToken)
+let data;
+if(storedToken==accessToken) data=true;
+console.log("ifcheck======",)
+      if (storedToken != accessToken) {
         throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
       }
   
       return {
         isValid: true,
-        message: 'Access token is valid',
+        userId,
       };
     } catch (error) {
+      
       if (error instanceof HttpException) {
         throw error;
       }
@@ -141,11 +158,10 @@ export class AuthService {
     }
   }
   
-
-
   private async createToken(payload: { userId: string, email: string, role: string, deviceId: string }, type: 'access' | 'refresh') {
     const secret = type === 'access' ? JWT.ACCESS_TOKEN_SECRET : JWT.REFRESH_TOKEN_SECRET;
     const expiresIn = type === 'access' ? JWT.ACCESS_EXPIRES_IN : JWT.REFRESH_EXPIRES_IN ;
+    
 
     return this.jwtService.sign(payload, { secret, expiresIn });
   }

@@ -17,6 +17,7 @@ export class RedisService {
 
   async getAccessToken(userId: string, deviceId: string) {
     const key = `auth:${userId}:${deviceId}`;
+    console.log("key",key);
     return this.client.get(key);
   }
 

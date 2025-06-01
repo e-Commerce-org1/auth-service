@@ -35,6 +35,8 @@ async logout(data: LogoutRequest) {
   @UseGuards(JwtGuard)
   @GrpcMethod('AuthService', 'validateToken')
   async validateAccessToken(data:{accessToken:string}){
-     return await this.authService.validateAccessToken(data);
+     const data1= await this.authService.validateAccessToken(data);
+     console.log("data======",data);
+     return data1;
   }
 }

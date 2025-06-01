@@ -15,7 +15,7 @@ export interface LoginResponse {
   
   export interface ValidateAccessTokenResponse {
     isValid: boolean;
-    message?: string;
+    userId: string;
   }
   export interface AccessTokenRequest{
     refreshToken:string;

@@ -16,7 +16,7 @@ import { UserSession, UserSessionSchema } from './schemas/user-session.schema';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, RedisService, JwtGuard],
+  providers: [AuthService, RedisService, JwtGuard,],
   exports: [AuthService, JwtGuard],
 })
 export class AuthModule {}
