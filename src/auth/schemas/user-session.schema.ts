@@ -2,18 +2,18 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
-export class UserSession extends Document {
+export class Session extends Document {
   @Prop({ required: true })
-  userId: string;
+  entityId: string;
 
   @Prop({ required: true })
   deviceId: string;
 
   @Prop({ required: true })
   email: string;
-
-  @Prop({ required: true })
-  role: string; // user or admin
+  
+  @Prop({ required: true, enum: ['user', 'admin'] })
+  role: string; 
 
   @Prop({ required: true })
   refreshToken: string;
@@ -22,4 +22,4 @@ export class UserSession extends Document {
   active: boolean;
 }
 
-export const UserSessionSchema = SchemaFactory.createForClass(UserSession);
+export const SessionSchema = SchemaFactory.createForClass(Session);

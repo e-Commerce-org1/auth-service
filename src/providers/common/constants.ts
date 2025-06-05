@@ -1,7 +1,7 @@
 export const JWT = {
     ACCESS_TOKEN_SECRET: process.env.JWT_SECRET || 'yashika',
     REFRESH_TOKEN_SECRET: process.env.JWT_REFRESH_TOKEN_SECRET || 'yashika1',
-    ACCESS_EXPIRES_IN: '15m',
+    ACCESS_EXPIRES_IN: '1d',
     REFRESH_EXPIRES_IN: '7d',
   };
   

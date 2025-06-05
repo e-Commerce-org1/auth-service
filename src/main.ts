@@ -2,7 +2,10 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { join } from 'path';
-import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { HttpExceptionFilter } from './providers/filters/http-exception.filter';
+import { WinstonModule } from 'nest-winston';
+import { winstonLoggerConfig } from './providers/common/winston.logger';
+
 
 async function bootstrap() {
   // HTTP Server 

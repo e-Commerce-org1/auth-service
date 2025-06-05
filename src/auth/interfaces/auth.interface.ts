@@ -7,7 +7,7 @@ export interface LoginResponse {
     email: string;
     deviceId: string; 
     role: string;
-    userId: string; 
+    entityId: string; 
   }
   export interface ValidateAccessTokenRequest{
     accessToken:string;
@@ -15,7 +15,7 @@ export interface LoginResponse {
   
   export interface ValidateAccessTokenResponse {
     isValid: boolean;
-    userId: string;
+    entityId: string;
   }
   export interface AccessTokenRequest{
     refreshToken:string;

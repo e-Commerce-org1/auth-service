@@ -1,10 +1,20 @@
-import { Injectable, UnauthorizedException, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+
+  Injectable,
+  UnauthorizedException,
+  HttpException,
+  Inject,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { UserSession } from './schemas/user-session.schema';
-import { RedisService } from './redis.service';
-import { JWT, GRPC_ERROR_MESSAGES, HTTP_STATUS_CODES } from '../common/constants';
+import { Session } from './schemas/user-session.schema';
+import { RedisService } from 'src/providers/redis/redis.service';
+import {
+  JWT,
+  GRPC_ERROR_MESSAGES,
+  HTTP_STATUS_CODES,
+} from '../providers/common/constants';
 import {
   LoginResponse,
   ValidateAccessTokenResponse,
@@ -14,154 +24,256 @@ import {
   AccessTokenRequest,
   ValidateAccessTokenRequest,
   LogoutRequest,
-  
 } from './interfaces/auth.interface';
+import { User, UserDocument } from './schemas/user.schema';
+import { RedisKeys } from '../providers/redis/redis.key';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
-    @InjectModel(UserSession.name) private readonly userSessionModel: Model<UserSession>,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger:Logger,
+    @InjectModel('Session')
+    private readonly SessionModel: Model<Session>,
+    @InjectModel('User')
+    private readonly userModel: Model<UserDocument>,
     private readonly redisService: RedisService,
     
-
   ) {}
 
- 
-    async getToken(loginRequest: LoginRequest): Promise<LoginResponse> {
+  async getToken(loginRequest: LoginRequest): Promise<LoginResponse> {
     try {
-     
-      const accessToken = await this.createToken(loginRequest, 'access');
-      const refreshToken = await this.createToken(loginRequest, 'refresh');
+      this.logger.info(`Login attempt`, { entityId: loginRequest.entityId, role: loginRequest.role });
 
-      await this.redisService.storeAccessToken(loginRequest.userId, loginRequest.deviceId, accessToken);
-
-      await this.userSessionModel.create({
-        userId: loginRequest.userId,
-        deviceId: loginRequest.deviceId,
-        email: loginRequest.email,
-        role: loginRequest.role,
-        refreshToken,
-        active: true,
-      });
-
-     
-      return { accessToken, refreshToken };
-    } catch (error) {
-      
-      throw new HttpException(GRPC_ERROR_MESSAGES.LOGIN_FAILED,
-        HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
-    }
-  }
-  async accessToken(request: AccessTokenRequest): Promise<AccessTokenResponse> {
-    try {
-      const { refreshToken } = request;
-      const decoded = this.jwtService.verify(refreshToken, {
-        secret: JWT.REFRESH_TOKEN_SECRET,
-      });
   
-      const { userId, deviceId } = decoded;
+      if (loginRequest.role === 'admin') {
       
-      const session = await this.userSessionModel.findOne({
-        userId,
-        deviceId,
-        refreshToken,
-        active: true,
-      });
+        this.logger.info(`Generating tokens for admin`, { entityId: loginRequest.entityId });
+
+        const accessToken = await this.createToken(loginRequest, 'access');
+        const refreshToken = await this.createToken(loginRequest, 'refresh');
   
-      if (!session) {
-       
-        throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
+        const redisKey = RedisKeys.accessTokenKey(
+          loginRequest.role,
+          loginRequest.entityId,
+          loginRequest.deviceId
+        );
+  
+        await this.redisService.storeAccessToken(
+          accessToken,
+          redisKey,
+          RedisKeys.TTL.ACCESS_TOKEN
+        );
+  
+        await this.SessionModel.create({
+          entityId: loginRequest.entityId,
+          deviceId: loginRequest.deviceId,
+          email: loginRequest.email,
+          role: loginRequest.role,
+          refreshToken,
+          active: true,
+        });
+  
+        this.logger.info(`Admin login successful`, { entityId: loginRequest.entityId });
+        return { accessToken, refreshToken };
+      } else {
+        const user = await this.userModel.findById(loginRequest.entityId);
+  
+        if (!user) {
+          this.logger.warn(`User not found`, { entityId: loginRequest.entityId });
+          throw new HttpException('User not found', HTTP_STATUS_CODES.NOT_FOUND);
+        }
+  
+        if (!user.isActive) {
+          this.logger.warn(`Inactive user login attempt`, { entityId: loginRequest.entityId });
+          throw new HttpException('User is inactive', HTTP_STATUS_CODES.FORBIDDEN);
+        }
+  
+        const accessToken = await this.createToken(loginRequest, 'access');
+        const refreshToken = await this.createToken(loginRequest, 'refresh');
+  
+        const redisKey = RedisKeys.accessTokenKey(
+          loginRequest.role,
+          loginRequest.entityId,
+          loginRequest.deviceId
+        );
+  
+        await this.redisService.storeAccessToken(
+          accessToken,
+          redisKey,
+          RedisKeys.TTL.ACCESS_TOKEN
+        );
+  
+        await this.SessionModel.create({
+          entityId: loginRequest.entityId,
+          deviceId: loginRequest.deviceId,
+          email: loginRequest.email,
+          role: loginRequest.role,
+          refreshToken,
+          active: true,
+        });
+  
+        this.logger.info(`Login successful`, { entityId: loginRequest.entityId });
+        return { accessToken, refreshToken };
       }
-      const accessToken = await this.createToken(
-        { userId, email: session.email, role: session.role, deviceId },
-        'access'
+    } catch (error) {
+      this.logger.error(
+        `Login failed for entityId: ${loginRequest.entityId}`,
+        error.stack
       );
-      await this.redisService.storeAccessToken(userId, deviceId, accessToken);
-  
-      return { accessToken };
-    } catch (error) {
-      
-      if (error instanceof HttpException) {
-        throw error;
-      }
-  
       throw new HttpException(
-        GRPC_ERROR_MESSAGES.SERVICE_UNAVAILABLE ,
+        GRPC_ERROR_MESSAGES.LOGIN_FAILED,
         HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
       );
     }
   }
   
+  async accessToken(request: AccessTokenRequest): Promise<AccessTokenResponse> {
+    try {
+      this.logger.info('Received request for new access token via refresh token.');
+      const { refreshToken } = request;
+      const decoded = this.jwtService.verify(refreshToken, {
+        secret: JWT.REFRESH_TOKEN_SECRET,
+      });
+
+      const { entityId, deviceId, role } = decoded;
+      this.logger.debug(`Decoded refreshToken for entityId: ${entityId}, deviceId: ${deviceId}, role: ${role}`);
+
+      const session = await this.SessionModel.findOne({
+        entityId,
+        deviceId,
+        role,
+        refreshToken,
+        active: true,
+      });
+
+      if (!session) {
+        this.logger.warn('No active session found for refreshToken', { entityId });
+        throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
+      }
+
+      const accessToken = await this.createToken(
+        {
+          entityId,
+          email: session.email,
+          role: session.role,
+          deviceId,
+        },
+        'access'
+      );
+
+      const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
+
+      await this.redisService.storeAccessToken(
+        accessToken,
+        redisKey,
+        RedisKeys.TTL.ACCESS_TOKEN
+      );
+      return { accessToken };
+    } catch (error) {
+      this.logger.error('Access token generation failed', {
+        error: error.stack || error.message,
+      });
+      if (error instanceof HttpException) throw error;
+
+      throw new HttpException(
+        GRPC_ERROR_MESSAGES.SERVICE_UNAVAILABLE,
+        HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
 
   async logout(request: LogoutRequest): Promise<LogoutResponse> {
     try {
+      this.logger.info('Logout attempt received.');
       const decoded = this.jwtService.verify(request.accessToken, {
         secret: JWT.ACCESS_TOKEN_SECRET,
       });
-  
-      const { userId, deviceId } = decoded;
-      
-      await this.redisService.deleteAccessToken(userId, deviceId);
-      await this.userSessionModel.updateOne(
-        { userId, deviceId, active: true },
+
+      const { entityId, deviceId, role } = decoded;
+      this.logger.debug('Decoded accessToken for logout', { entityId, deviceId, role });
+      const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
+
+      await this.redisService.deleteAccessToken(redisKey);
+
+      await this.SessionModel.updateOne(
+        { entityId, deviceId, role, active: true },
         { $set: { active: false } }
       );
-  
+
+      this.logger.info('Logout successful', { entityId });
       return { success: true };
     } catch (error) {
-      
-      if (error instanceof HttpException) {
-        throw error;
-      }
-  
-      throw new HttpException(GRPC_ERROR_MESSAGES.LOGOUT_FAILED, HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+      this.logger.error('Logout failed', {
+        error: error.stack || error.message,
+      });
+      if (error instanceof HttpException) throw error;
+
+      throw new HttpException(
+        GRPC_ERROR_MESSAGES.LOGOUT_FAILED,
+        HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
+      );
     }
   }
-  
 
-  async validateAccessToken(validateToken: ValidateAccessTokenRequest): Promise<ValidateAccessTokenResponse> {
+  async validateAccessToken(
+    validateToken: ValidateAccessTokenRequest
+  ): Promise<ValidateAccessTokenResponse> {
     try {
       const { accessToken } = validateToken;
-      console.log("accessToken",accessToken)
-  
+      this.logger.info('Validating access token.');
       const decoded = this.jwtService.verify(accessToken, {
         secret: JWT.ACCESS_TOKEN_SECRET,
       });
-      console.log("decoded",decoded);
-  
-      const { userId, deviceId } = decoded;
-      
-      const storedToken = await this.redisService.getAccessToken(userId, deviceId);
-    
-      //redis data acess
-console.log(storedToken)
-console.log(accessToken)
-let data;
-if(storedToken==accessToken) data=true;
-console.log("ifcheck======",)
-      if (storedToken != accessToken) {
+
+      const { entityId, deviceId, role } = decoded;
+      this.logger.debug('Decoded accessToken', { entityId, deviceId, role });
+
+      const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
+      const storedToken = await this.redisService.getAccessToken(redisKey);
+
+      if (storedToken !== accessToken) {
+        this.logger.warn('Access token mismatch', { entityId });
         throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
       }
-  
+
+      this.logger.info('Access token is valid', { entityId });
       return {
         isValid: true,
-        userId,
+        entityId,
       };
     } catch (error) {
-      
-      if (error instanceof HttpException) {
-        throw error;
-      }
-  
-      throw new HttpException(GRPC_ERROR_MESSAGES.VALIDATION_FAILED, HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+      this.logger.error('Access token validation failed', {
+        error: error.stack || error.message,
+      });
+      if (error instanceof HttpException) throw error;
+
+      throw new HttpException(
+        GRPC_ERROR_MESSAGES.VALIDATION_FAILED,
+        HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
+      );
     }
   }
-  
-  private async createToken(payload: { userId: string, email: string, role: string, deviceId: string }, type: 'access' | 'refresh') {
-    const secret = type === 'access' ? JWT.ACCESS_TOKEN_SECRET : JWT.REFRESH_TOKEN_SECRET;
-    const expiresIn = type === 'access' ? JWT.ACCESS_EXPIRES_IN : JWT.REFRESH_EXPIRES_IN ;
-    
+
+  private async createToken(
+    payload: {
+      entityId: string;
+      email: string;
+      role: string;
+      deviceId: string;
+    },
+    type: 'access' | 'refresh'
+  ): Promise<string> {
+    const secret =
+      type === 'access'
+        ? JWT.ACCESS_TOKEN_SECRET
+        : JWT.REFRESH_TOKEN_SECRET;
+    const expiresIn =
+      type === 'access'
+        ? JWT.ACCESS_EXPIRES_IN
+        : JWT.REFRESH_EXPIRES_IN;
 
     return this.jwtService.sign(payload, { secret, expiresIn });
   }

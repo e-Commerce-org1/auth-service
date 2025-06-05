@@ -30,7 +30,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const errorResponse = exception.getResponse();
         const errorMessage = typeof errorResponse === 'string' ? errorResponse : errorResponse['message'] || 'Internal server error';
       
-        // Log the full exception
+        
         this.logger.error(`RpcException caught: ${errorMessage}`, exception.stack);
       
         throw new RpcException({
