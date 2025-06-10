@@ -22,7 +22,7 @@ export class JwtGuard implements CanActivate {
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger:Logger,
-    @InjectModel(Session.name) private readonly userSessionModel: Model<Session>
+    @InjectModel(Session.name) private readonly SessionModel: Model<Session>
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -44,11 +44,11 @@ export class JwtGuard implements CanActivate {
         role: decoded.role,
       });
     } catch (error) {
-      console.log("not the right token")
+      
       this.logger.warn('Access token verification failed', {
         error: error.stack || error.message,
       });
-      throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
+      throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);   
     }
 
     const { entityId, deviceId, role } = decoded;
@@ -67,12 +67,9 @@ export class JwtGuard implements CanActivate {
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
 
-    if (storedToken !== accessToken) {
-      this.logger.warn('Access token mismatch', { entityId, deviceId, role });
-      throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
-    }
+    
 
-    const session = await this.userSessionModel.findOne({
+    const session = await this.SessionModel.findOne({
       entityId,
       deviceId,
       role,
