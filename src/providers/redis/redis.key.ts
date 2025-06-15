@@ -6,7 +6,7 @@ export const RedisKeys = {
       deviceId: string
     ): string[] => ['auth', role, entityId, deviceId],
     TTL: {
-        ACCESS_TOKEN: 15*60*24,         
+        ACCESS_TOKEN: 60*60*24,         
        
       },
      };

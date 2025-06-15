@@ -9,9 +9,9 @@ import { winstonLoggerConfig } from './providers/common/winston.logger';
 
 async function bootstrap() {
   // HTTP Server 
-  const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new HttpExceptionFilter());
-  await app.listen(3000);
+  // const app = await NestFactory.create(AppModule);
+  // app.useGlobalFilters(new HttpExceptionFilter());
+  // await app.listen(3003);
  
 
   // AuthService Microservice (gRPC)
@@ -20,12 +20,12 @@ async function bootstrap() {
     options: {
       package: 'auth',
       protoPath: join(__dirname, '../src/proto/auth.proto'),
-      url: '0.0.0.0:5051', 
+      url: process.env.GRPC_PORT, 
     },
   });
   app1.useGlobalFilters(new HttpExceptionFilter());
   await app1.listen();
-  console.log('AuthService gRPC running on 0.0.0.0:5051');
+  console.log('AuthService gRPC running on 0.0.0.0:5052');  
 }
 
 bootstrap();

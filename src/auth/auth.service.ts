@@ -1,5 +1,4 @@
 import {
-
   Injectable,
   UnauthorizedException,
   HttpException,
@@ -29,6 +28,7 @@ import { User, UserDocument } from './schemas/user.schema';
 import { RedisKeys } from '../providers/redis/redis.key';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class AuthService {

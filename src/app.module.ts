@@ -14,9 +14,8 @@ import { winstonLoggerConfig } from './providers/common/winston.logger';
     }),
     MongooseModule.forRootAsync({
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI') || 'mongodb+srv://yashikasingh:Yashi%402003@cluster0.r0gt3.mongodb.net/',
-         //uri: 'mongodb+srv://yashikasingh:Yashi%402003@cluster0.r0gt3.mongodb.net/',
-         dbName:'eCommerce',
+        uri: configService.get<string>('MONGODB_URI') ,
+         dbName:configService.get<string>('MONGODB_NAME'),
       }),
       inject: [ConfigService],
     }),
