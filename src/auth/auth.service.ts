@@ -24,11 +24,11 @@ import {
   ValidateAccessTokenRequest,
   LogoutRequest,
 } from './interfaces/auth.interface';
-import { User, UserDocument } from './schemas/user.schema';
+import {  UserDocument } from './schemas/user.schema';
 import { RedisKeys } from '../providers/redis/redis.key';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
-import { Observable } from 'rxjs';
+import { LogMessages } from 'src/providers/common/log-message';
 
 @Injectable()
 export class AuthService {
@@ -42,16 +42,13 @@ export class AuthService {
     private readonly redisService: RedisService,
     
   ) {}
-
+//generating access and refresh tokens
   async getToken(loginRequest: LoginRequest): Promise<LoginResponse> {
     try {
-      this.logger.info(`Login attempt`, { entityId: loginRequest.entityId, role: loginRequest.role });
-
-  
+      this.logger.info(LogMessages.LOGIN_ATTEMPT, { entityId: loginRequest.entityId });
       if (loginRequest.role === 'admin') {
       
-        this.logger.info(`Generating tokens for admin`, { entityId: loginRequest.entityId });
-
+        this.logger.info(LogMessages.GENERATING_ADMIN_TOKENS, { entityId: loginRequest.entityId });
         const accessToken = await this.createToken(loginRequest, 'access');
         const refreshToken = await this.createToken(loginRequest, 'refresh');
   
@@ -60,13 +57,12 @@ export class AuthService {
           loginRequest.entityId,
           loginRequest.deviceId
         );
-  
         await this.redisService.storeAccessToken(
           accessToken,
           redisKey,
           RedisKeys.TTL.ACCESS_TOKEN
         );
-  
+       //session creation for admin
         await this.SessionModel.create({
           entityId: loginRequest.entityId,
           deviceId: loginRequest.deviceId,
@@ -75,20 +71,19 @@ export class AuthService {
           refreshToken,
           active: true,
         });
-  
-        this.logger.info(`Admin login successful`, { entityId: loginRequest.entityId });
+        this.logger.info(LogMessages.ADMIN_LOGIN_SUCCESSFUL, { entityId: loginRequest.entityId });
         return { accessToken, refreshToken };
       } else {
         const user = await this.userModel.findById(loginRequest.entityId);
   
         if (!user) {
-          this.logger.warn(`User not found`, { entityId: loginRequest.entityId });
-          throw new HttpException('User not found', HTTP_STATUS_CODES.NOT_FOUND);
+          this.logger.warn(LogMessages.USER_NOT_FOUND, { entityId: loginRequest.entityId });
+          throw new HttpException(GRPC_ERROR_MESSAGES.NOT_FOUND, HTTP_STATUS_CODES.NOT_FOUND);
         }
   
         if (!user.isActive) {
-          this.logger.warn(`Inactive user login attempt`, { entityId: loginRequest.entityId });
-          throw new HttpException('User is inactive', HTTP_STATUS_CODES.FORBIDDEN);
+          this.logger.warn(LogMessages.INACTIVE_USER_LOGIN_ATTEMPT, { entityId: loginRequest.entityId });
+          throw new HttpException(GRPC_ERROR_MESSAGES.USER_INACTIVE, HTTP_STATUS_CODES.FORBIDDEN);
         }
   
         const accessToken = await this.createToken(loginRequest, 'access');
@@ -105,7 +100,7 @@ export class AuthService {
           redisKey,
           RedisKeys.TTL.ACCESS_TOKEN
         );
-  
+       //session creation for user
         await this.SessionModel.create({
           entityId: loginRequest.entityId,
           deviceId: loginRequest.deviceId,
@@ -115,31 +110,28 @@ export class AuthService {
           active: true,
         });
   
-        this.logger.info(`Login successful`, { entityId: loginRequest.entityId });
+        this.logger.info(LogMessages.LOGIN_SUCCESSFUL, { entityId: loginRequest.entityId });
         return { accessToken, refreshToken };
       }
     } catch (error) {
-      this.logger.error(
-        `Login failed for entityId: ${loginRequest.entityId}`,
-        error.stack
-      );
+      this.logger.error(`${LogMessages.LOGIN_FAILED}: ${loginRequest.entityId}`, error.stack);
       throw new HttpException(
         GRPC_ERROR_MESSAGES.LOGIN_FAILED,
         HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR
       );
     }
   }
-  
+  //regenarting access token logic
   async accessToken(request: AccessTokenRequest): Promise<AccessTokenResponse> {
     try {
-      this.logger.info('Received request for new access token via refresh token.');
+      this.logger.info(LogMessages.RECEIVED_REFRESH_TOKEN_REQUEST);
       const { refreshToken } = request;
       const decoded = this.jwtService.verify(refreshToken, {
         secret: JWT.REFRESH_TOKEN_SECRET,
       });
 
       const { entityId, deviceId, role } = decoded;
-      this.logger.debug(`Decoded refreshToken for entityId: ${entityId}, deviceId: ${deviceId}, role: ${role}`);
+      this.logger.debug(`${LogMessages.DECODED_REFRESH_TOKEN}: ${entityId}, deviceId: ${deviceId}, role: ${role}`);
 
       const session = await this.SessionModel.findOne({
         entityId,
@@ -150,7 +142,7 @@ export class AuthService {
       });
 
       if (!session) {
-        this.logger.warn('No active session found for refreshToken', { entityId });
+        this.logger.warn(LogMessages.NO_ACTIVE_SESSION_FOR_REFRESH_TOKEN, { entityId });
         throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
       }
 
@@ -173,7 +165,7 @@ export class AuthService {
       );
       return { accessToken };
     } catch (error) {
-      this.logger.error('Access token generation failed', {
+      this.logger.error(LogMessages.ACCESS_TOKEN_GENERATION_FAILED, {
         error: error.stack || error.message,
       });
       if (error instanceof HttpException) throw error;
@@ -184,16 +176,16 @@ export class AuthService {
       );
     }
   }
-
+//logout logic
   async logout(request: LogoutRequest): Promise<LogoutResponse> {
     try {
-      this.logger.info('Logout attempt received.');
+      this.logger.info(LogMessages.LOGOUT_ATTEMPT);
       const decoded = this.jwtService.verify(request.accessToken, {
         secret: JWT.ACCESS_TOKEN_SECRET,
       });
 
       const { entityId, deviceId, role } = decoded;
-      this.logger.debug('Decoded accessToken for logout', { entityId, deviceId, role });
+      this.logger.debug(LogMessages.DECODED_ACCESS_TOKEN_FOR_LOGOUT, { entityId, deviceId, role });
       const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
 
       await this.redisService.deleteAccessToken(redisKey);
@@ -203,10 +195,10 @@ export class AuthService {
         { $set: { active: false } }
       );
 
-      this.logger.info('Logout successful', { entityId });
+      this.logger.info(LogMessages.LOGOUT_SUCCESSFUL, { entityId });
       return { success: true };
     } catch (error) {
-      this.logger.error('Logout failed', {
+      this.logger.error(LogMessages.LOGOUT_FAILED, {
         error: error.stack || error.message,
       });
       if (error instanceof HttpException) throw error;
@@ -217,35 +209,33 @@ export class AuthService {
       );
     }
   }
-
+//validation logic
   async validateAccessToken(
     validateToken: ValidateAccessTokenRequest
   ): Promise<ValidateAccessTokenResponse> {
     try {
       const { accessToken } = validateToken;
-      this.logger.info('Validating access token.');
+      this.logger.info(LogMessages.VALIDATING_ACCESS_TOKEN);
       const decoded = this.jwtService.verify(accessToken, {
         secret: JWT.ACCESS_TOKEN_SECRET,
       });
-
       const { entityId, deviceId, role } = decoded;
-      this.logger.debug('Decoded accessToken', { entityId, deviceId, role });
-
+      this.logger.debug(LogMessages.DECODED_ACCESS_TOKEN, { entityId, deviceId, role });
       const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
       const storedToken = await this.redisService.getAccessToken(redisKey);
 
       if (storedToken !== accessToken) {
-        this.logger.warn('Access token mismatch', { entityId });
+        this.logger.warn(LogMessages.ACCESS_TOKEN_MISMATCH, { entityId });
         throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
-      this.logger.info('Access token is valid', { entityId });
+      this.logger.info(LogMessages.ACCESS_TOKEN_VALID, { entityId });
       return {
         isValid: true,
         entityId,
       };
     } catch (error) {
-      this.logger.error('Access token validation failed', {
+      this.logger.error(LogMessages.ACCESS_TOKEN_VALIDATION_FAILED, {
         error: error.stack || error.message,
       });
       if (error instanceof HttpException) throw error;
@@ -256,7 +246,7 @@ export class AuthService {
       );
     }
   }
-
+//method to generate access and refresh tokens
   private async createToken(
     payload: {
       entityId: string;

@@ -16,6 +16,8 @@ export const JWT = {
     LOGIN_FAILED: 'Login failed',
     VALIDATION_FAILED: 'Validation failed',
     SERVICE_UNAVAILABLE:'Authentication service unavailable',
+    NOT_FOUND:'User not found',
+    USER_INACTIVE:'User is inactive'
   };
   
 export const HTTP_STATUS_CODES = {
@@ -24,3 +26,12 @@ export const HTTP_STATUS_CODES = {
     NOT_FOUND: 404,
     INTERNAL_SERVER_ERROR: 500,
   }; 
+
+export const GRPC_AUTH_SERVICE = 'AuthService';
+
+export const AuthGrpcMethods = {
+  GET_TOKEN: 'getToken',
+  ACCESS_TOKEN: 'accessToken',
+  LOGOUT: 'logout',
+  VALIDATE_TOKEN: 'validateToken',
+};

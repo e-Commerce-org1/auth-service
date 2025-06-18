@@ -1,0 +1,25 @@
+
+export const LogMessages = {
+    LOGIN_ATTEMPT: 'Login attempt',
+    GENERATING_ADMIN_TOKENS: 'Generating tokens for admin',
+    ADMIN_LOGIN_SUCCESSFUL: 'Admin login successful',
+    USER_NOT_FOUND: 'User not found',
+    INACTIVE_USER_LOGIN_ATTEMPT: 'Inactive user login attempt',
+    LOGIN_SUCCESSFUL: 'Login successful',
+    LOGIN_FAILED: 'Login failed for entityId',
+    RECEIVED_REFRESH_TOKEN_REQUEST: 'Received request for new access token via refresh token.',
+    DECODED_REFRESH_TOKEN: 'Decoded refreshToken for entityId',
+    NO_ACTIVE_SESSION_FOR_REFRESH_TOKEN: 'No active session found for refreshToken',
+    ACCESS_TOKEN_GENERATION_FAILED: 'Access token generation failed',
+    LOGOUT_ATTEMPT: 'Logout attempt received.',
+    DECODED_ACCESS_TOKEN_FOR_LOGOUT: 'Decoded accessToken for logout',
+    LOGOUT_SUCCESSFUL: 'Logout successful',
+    LOGOUT_FAILED: 'Logout failed',
+    VALIDATING_ACCESS_TOKEN: 'Validating access token.',
+    DECODED_ACCESS_TOKEN: 'Decoded accessToken',
+    ACCESS_TOKEN_MISMATCH: 'Access token mismatch',
+    ACCESS_TOKEN_VALID: 'Access token is valid',
+    ACCESS_TOKEN_VALIDATION_FAILED: 'Access token validation failed',
+  };
+  
+  

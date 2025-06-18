@@ -1,9 +1,6 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-
-
 @Injectable()
 export class RedisService {
 
@@ -22,14 +19,13 @@ export class RedisService {
     ttl: number,
   ): Promise<void> {
     const key = this.buildKey(keyParts);
-    await this.client.set(key, accessToken, 'EX', ttl);
-    
+    //console.log('Redis key:',key);
+   await this.client.set(key, accessToken, 'EX', ttl);  
   }
 
   async getAccessToken(keyParts: string[]): Promise<string | null> {
     const key = this.buildKey(keyParts);
     return  await this.client.get(key);
-
   }
 
   async validateAccessToken(

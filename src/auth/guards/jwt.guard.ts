@@ -4,7 +4,6 @@ import {
   Inject,
   Injectable,
   UnauthorizedException,
-
 } from '@nestjs/common';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
@@ -27,7 +26,7 @@ export class JwtGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const data = context.switchToRpc().getData(); 
-    const accessToken = data?.accessToken;
+    const accessToken = data?.accessToken;  
 
     if (!accessToken) {
       this.logger.warn('Access token missing from request.');
@@ -66,9 +65,6 @@ export class JwtGuard implements CanActivate {
       this.logger.warn('No token found in Redis', { entityId, deviceId, role });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
-
-    
-
     const session = await this.SessionModel.findOne({
       entityId,
       deviceId,
