@@ -22,7 +22,7 @@ export class JwtGuard implements CanActivate {
     private readonly redisService: RedisService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
     @InjectModel(Session.name) private readonly SessionModel: Model<Session>,
-  ) {}
+  ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const data = context.switchToRpc().getData();
@@ -32,22 +32,10 @@ export class JwtGuard implements CanActivate {
       this.logger.warn('Access token missing from request.');
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
-    let decoded: any;
-    try {
-      decoded = this.jwtService.verify(accessToken, {
-        secret: JWT.ACCESS_TOKEN_SECRET,
-      });
-      this.logger.debug('Token decoded', {
-        entityId: decoded.entityId,
-        deviceId: decoded.deviceId,
-        role: decoded.role,
-      });
-    } catch (error) {
-      this.logger.warn('Access token verification failed', {
-        error: error.stack || error.message,
-      });
-      throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
-    }
+
+    const decoded = this.jwtService.verify(accessToken, {
+      secret: JWT.ACCESS_TOKEN_SECRET,
+    });
 
     const { entityId, deviceId, role } = decoded;
 
@@ -58,14 +46,16 @@ export class JwtGuard implements CanActivate {
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
 
-    const keyParts = RedisKeys.accessTokenKey(role, entityId, deviceId);
+    this.logger.debug('Token decoded', { entityId, deviceId, role });
 
-    const storedToken = await this.redisService.getAccessToken(keyParts);
+    const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
+    const storedToken = await this.redisService.getAccessToken(redisKey);
 
     if (!storedToken) {
       this.logger.warn('No token found in Redis', { entityId, deviceId, role });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
+
     const session = await this.SessionModel.findOne({
       entityId,
       deviceId,
@@ -78,7 +68,7 @@ export class JwtGuard implements CanActivate {
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
 
-    this.logger.info('JWT validation passed', { entityId });
+    this.logger.info('JWT validation passed', { entityId, deviceId, role });
     return true;
   }
 }

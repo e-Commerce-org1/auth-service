@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class Session extends Document {
-  @Prop({ required: true ,index:true })
+  @Prop({ required: true, index: true })
   entityId: string;
 
   @Prop({ required: true })

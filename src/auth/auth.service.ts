@@ -40,7 +40,7 @@ export class AuthService {
     @InjectModel('User')
     private readonly userModel: Model<UserDocument>,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   async getToken(loginRequest: LoginRequest): Promise<LoginResponse> {
     this.logger.info(LogMessages.LOGIN_ATTEMPT, {
@@ -65,10 +65,20 @@ export class AuthService {
       Role = 'admin';
     }
 
-    const accessToken = await this.generateJwtToken({ ...loginRequest, role: Role }, 'access');
-    const refreshToken = await this.generateJwtToken({ ...loginRequest, role: Role }, 'refresh');
+    const accessToken = await this.generateJwtToken(
+      { ...loginRequest, role: Role },
+      'access',
+    );
+    const refreshToken = await this.generateJwtToken(
+      { ...loginRequest, role: Role },
+      'refresh',
+    );
 
-    const accessTokenRedisKey = RedisKeys.accessTokenKey(Role, loginRequest.entityId, loginRequest.deviceId);
+    const accessTokenRedisKey = RedisKeys.accessTokenKey(
+      Role,
+      loginRequest.entityId,
+      loginRequest.deviceId,
+    );
 
     await this.redisService.storeAccessToken(
       accessToken,
@@ -86,14 +96,18 @@ export class AuthService {
     });
 
     this.logger.info(
-      Role === 'admin' ? LogMessages.ADMIN_LOGIN_SUCCESSFUL : LogMessages.LOGIN_SUCCESSFUL,
+      Role === 'admin'
+        ? LogMessages.ADMIN_LOGIN_SUCCESSFUL
+        : LogMessages.LOGIN_SUCCESSFUL,
       { entityId: loginRequest.entityId },
     );
 
     return { accessToken, refreshToken };
   }
 
-  async accessToken(refreshTokenRequest: AccessTokenRequest): Promise<AccessTokenResponse> {
+  async accessToken(
+    refreshTokenRequest: AccessTokenRequest,
+  ): Promise<AccessTokenResponse> {
     this.logger.info(LogMessages.RECEIVED_REFRESH_TOKEN_REQUEST);
 
     const { refreshToken } = refreshTokenRequest;
@@ -115,7 +129,9 @@ export class AuthService {
     });
 
     if (!activeSession) {
-      this.logger.warn(LogMessages.NO_ACTIVE_SESSION_FOR_REFRESH_TOKEN, { entityId });
+      this.logger.warn(LogMessages.NO_ACTIVE_SESSION_FOR_REFRESH_TOKEN, {
+        entityId,
+      });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
 
@@ -129,9 +145,17 @@ export class AuthService {
       'access',
     );
 
-    const accessTokenRedisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
+    const accessTokenRedisKey = RedisKeys.accessTokenKey(
+      role,
+      entityId,
+      deviceId,
+    );
 
-    await this.redisService.storeAccessToken(newAccessToken, accessTokenRedisKey, RedisKeys.TTL.ACCESS_TOKEN);
+    await this.redisService.storeAccessToken(
+      newAccessToken,
+      accessTokenRedisKey,
+      RedisKeys.TTL.ACCESS_TOKEN,
+    );
 
     return { accessToken: newAccessToken };
   }
@@ -139,9 +163,12 @@ export class AuthService {
   async logout(logoutRequest: LogoutRequest): Promise<LogoutResponse> {
     this.logger.info(LogMessages.LOGOUT_ATTEMPT);
 
-    const decodedAccessToken = this.jwtService.verify(logoutRequest.accessToken, {
-      secret: JWT.ACCESS_TOKEN_SECRET,
-    });
+    const decodedAccessToken = this.jwtService.verify(
+      logoutRequest.accessToken,
+      {
+        secret: JWT.ACCESS_TOKEN_SECRET,
+      },
+    );
 
     const { entityId, deviceId, role } = decodedAccessToken;
     this.logger.debug(LogMessages.DECODED_ACCESS_TOKEN_FOR_LOGOUT, {
@@ -150,7 +177,11 @@ export class AuthService {
       role,
     });
 
-    const accessTokenRedisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
+    const accessTokenRedisKey = RedisKeys.accessTokenKey(
+      role,
+      entityId,
+      deviceId,
+    );
 
     await this.redisService.deleteAccessToken(accessTokenRedisKey);
 
@@ -174,10 +205,19 @@ export class AuthService {
     });
 
     const { entityId, deviceId, role } = decodedAccessToken;
-    this.logger.debug(LogMessages.DECODED_ACCESS_TOKEN, { entityId, deviceId, role });
+    this.logger.debug(LogMessages.DECODED_ACCESS_TOKEN, {
+      entityId,
+      deviceId,
+      role,
+    });
 
-    const accessTokenRedisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
-    const storedAccessToken = await this.redisService.getAccessToken(accessTokenRedisKey);
+    const accessTokenRedisKey = RedisKeys.accessTokenKey(
+      role,
+      entityId,
+      deviceId,
+    );
+    const storedAccessToken =
+      await this.redisService.getAccessToken(accessTokenRedisKey);
 
     if (storedAccessToken !== accessToken) {
       this.logger.warn(LogMessages.ACCESS_TOKEN_MISMATCH, { entityId });
@@ -200,8 +240,12 @@ export class AuthService {
     },
     tokenType: 'access' | 'refresh',
   ): Promise<string> {
-    const secret = tokenType === 'access' ? JWT.ACCESS_TOKEN_SECRET : JWT.REFRESH_TOKEN_SECRET;
-    const expiresIn = tokenType === 'access' ? JWT.ACCESS_EXPIRES_IN : JWT.REFRESH_EXPIRES_IN;
+    const secret =
+      tokenType === 'access'
+        ? JWT.ACCESS_TOKEN_SECRET
+        : JWT.REFRESH_TOKEN_SECRET;
+    const expiresIn =
+      tokenType === 'access' ? JWT.ACCESS_EXPIRES_IN : JWT.REFRESH_EXPIRES_IN;
 
     return await this.jwtService.sign(payload, { secret, expiresIn });
   }

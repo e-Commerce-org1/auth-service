@@ -21,5 +21,4 @@ async function bootstrap() {
   await app1.listen();
   console.log('AuthService gRPC running on 0.0.0.0:5052');
 }
-
 bootstrap();
