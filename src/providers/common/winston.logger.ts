@@ -1,10 +1,8 @@
-
 import { utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import { WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
 import * as fs from 'fs';
 import * as path from 'path';
-
 
 const logDir = path.join(process.cwd(), 'logs');
 if (!fs.existsSync(logDir)) {
@@ -26,15 +24,15 @@ export const winstonLoggerConfig: WinstonModuleOptions = {
       level: 'error',
       format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.json()
+        winston.format.json(),
       ),
     }),
     new winston.transports.File({
       filename: 'logs/combined.log',
-      level:'info',
+      level: 'info',
       format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.json()
+        winston.format.json(),
       ),
     }),
   ],

@@ -5,17 +5,15 @@ import { AuthModule } from './auth/auth.module';
 import { WinstonModule } from 'nest-winston';
 import { winstonLoggerConfig } from './providers/common/winston.logger';
 
-
 @Module({
   imports: [
-    
     ConfigModule.forRoot({
       isGlobal: true,
     }),
     MongooseModule.forRootAsync({
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI') ,
-         dbName:configService.get<string>('MONGODB_NAME'),
+        uri: configService.get<string>('MONGODB_URI'),
+        dbName: configService.get<string>('MONGODB_NAME'),
       }),
       inject: [ConfigService],
     }),

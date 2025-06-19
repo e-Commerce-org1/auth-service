@@ -9,22 +9,21 @@ import { Session, SessionSchema } from './schemas/user-session.schema';
 import { UserSchema } from './schemas/user.schema';
 import { RedisModule } from '../providers/redis/redis.module';
 
-
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Session.name, schema: SessionSchema },
-      { name : 'User', schema: UserSchema }, 
-    ],),
-    
+      { name: 'User', schema: UserSchema },
+    ]),
+
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN },
     }),
-    RedisModule
+    RedisModule,
   ],
- 
+
   controllers: [AuthController],
-  providers: [AuthService, RedisService, JwtGuard,]
+  providers: [AuthService, RedisService, JwtGuard],
 })
 export class AuthModule {}

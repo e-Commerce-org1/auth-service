@@ -1,13 +1,8 @@
-
 import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 @Injectable()
 export class RedisService {
-
-  constructor(
-    @Inject('REDIS_CLIENT') private readonly client: Redis,
-  
-  ) {}
+  constructor(@Inject('REDIS_CLIENT') private readonly client: Redis) {}
 
   private buildKey(keyParts: string[]): string {
     return keyParts.join(':');
@@ -20,12 +15,12 @@ export class RedisService {
   ): Promise<void> {
     const key = this.buildKey(keyParts);
     //console.log('Redis key:',key);
-   await this.client.set(key, accessToken, 'EX', ttl);  
+    await this.client.set(key, accessToken, 'EX', ttl);
   }
 
   async getAccessToken(keyParts: string[]): Promise<string | null> {
     const key = this.buildKey(keyParts);
-    return  await this.client.get(key);
+    return await this.client.get(key);
   }
 
   async validateAccessToken(
@@ -34,13 +29,11 @@ export class RedisService {
   ): Promise<boolean> {
     const key = this.buildKey(keyParts);
     const storedToken = await this.client.get(key);
-    return  storedToken === accessToken;
-
+    return storedToken === accessToken;
   }
 
   async deleteAccessToken(keyParts: string[]): Promise<void> {
     const key = this.buildKey(keyParts);
     await this.client.del(key);
- 
   }
 }

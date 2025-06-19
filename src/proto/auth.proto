@@ -11,8 +11,7 @@ service AuthService {
 message LoginRequest {
   string email = 1;
   string deviceId=2;
-  string role=3;
-  string entityId=4;
+  string entityId=3;
   
 }
 message LoginResponse {

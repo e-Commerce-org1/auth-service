@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class Session extends Document {
-  @Prop({ required: true })
+  @Prop({ required: true ,index:true })
   entityId: string;
 
   @Prop({ required: true })
@@ -11,9 +11,9 @@ export class Session extends Document {
 
   @Prop({ required: true })
   email: string;
-  
+
   @Prop({ required: true, enum: ['user', 'admin'] })
-  role: string; 
+  role: string;
 
   @Prop({ required: true })
   refreshToken: string;

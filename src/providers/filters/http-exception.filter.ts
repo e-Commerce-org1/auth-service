@@ -1,42 +1,42 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, Logger } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
-import { Response } from 'express';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  Logger,
+} from '@nestjs/common';
+import { Response, Request } from 'express';
 
-@Catch(HttpException)
-export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(HttpExceptionFilter.name);
+@Catch() 
+export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  catch(exception: HttpException, host: ArgumentsHost) {
-    const ctxType = host.getType();
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
-    if (ctxType === 'http') {
-      const ctx = host.switchToHttp();
-      const response = ctx.getResponse<Response>();
-      const request = ctx.getRequest();
+    let status = 500;
+    let message = 'Internal server error';
 
-      const status = exception.getStatus();
-      const errorResponse = exception.getResponse();
-      const errorMessage = typeof errorResponse === 'string' ? errorResponse : errorResponse['message'];
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      const responseData = exception.getResponse();
+      message =
+        typeof responseData === 'string'
+          ? responseData
+          : (responseData as any).message || message;
+    } else if (exception instanceof Error) {
+      message = exception.message;
+    }
 
-      response.status(status).json({
-        statusCode: status,
-        timestamp: new Date().toISOString(),
-        path: request.url,
-        message: errorMessage,
-      });
+    this.logger.error(`Status: ${status} Error: ${message}`, (exception as any).stack);
 
-    } else if (ctxType === 'rpc') {
-        const status = exception.getStatus();
-        const errorResponse = exception.getResponse();
-        const errorMessage = typeof errorResponse === 'string' ? errorResponse : errorResponse['message'] || 'Internal server error';
-      
-        
-        this.logger.error(`RpcException caught: ${errorMessage}`, exception.stack);
-      
-        throw new RpcException({
-          statusCode: status,
-          message: errorMessage,
-        });
-      }
+    response.status(status).json({
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      message,
+    });
   }
-}     
+}
