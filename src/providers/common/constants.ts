@@ -18,6 +18,8 @@ export const GRPC_ERROR_MESSAGES = {
   SERVICE_UNAVAILABLE: 'Authentication service unavailable',
   NOT_FOUND: 'User not found',
   USER_INACTIVE: 'User is inactive',
+  UNAUTHORIZED_ADMIN: 'Unauthorized admin',
+  USER_NOT_FOUND: 'user not found',
 };
 
 export const HTTP_STATUS_CODES = {
@@ -29,9 +31,25 @@ export const HTTP_STATUS_CODES = {
 
 export const GRPC_AUTH_SERVICE = 'AuthService';
 
-export const AuthGrpcMethods = {
+export const AUTHGRPCMETHODS = {
   GET_TOKEN: 'getToken',
   ACCESS_TOKEN: 'accessToken',
   LOGOUT: 'logout',
   VALIDATE_TOKEN: 'validateToken',
 };
+export const ADMIN_EMAIL = {
+  EMAIL: 'mahi.rajput@appinventiv.com',
+};
+export const ROLES = {
+  ADMIN: 'admin',
+  USER: 'user',
+} as const;
+
+export type ROLETYPE = (typeof ROLES)[keyof typeof ROLES];
+
+export const TOKEN_TYPES = {
+  ACCESS: 'access',
+  REFRESH: 'refresh',
+} as const;
+
+export type TokenType = (typeof TOKEN_TYPES)[keyof typeof TOKEN_TYPES];

@@ -47,7 +47,7 @@ export class JwtGuard implements CanActivate {
     }
 
     this.logger.debug('Token decoded', { entityId, deviceId, role });
-// Check if the access token exists in Redis
+    // Check if the access token exists in Redis
     const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
     const storedToken = await this.redisService.getAccessToken(redisKey);
 
@@ -55,7 +55,7 @@ export class JwtGuard implements CanActivate {
       this.logger.warn('No token found in Redis', { entityId, deviceId, role });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
-// check the user exists in the session collection
+    // check the user exists in the session collection
     const session = await this.SessionModel.findOne({
       entityId,
       deviceId,

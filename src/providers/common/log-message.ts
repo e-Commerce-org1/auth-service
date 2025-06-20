@@ -21,4 +21,6 @@ export const LogMessages = {
   ACCESS_TOKEN_MISMATCH: 'Access token mismatch',
   ACCESS_TOKEN_VALID: 'Access token is valid',
   ACCESS_TOKEN_VALIDATION_FAILED: 'Access token validation failed',
+  UNAUTHORIZED_ADMIN_LOGIN_ATTEMPT: 'Unauthorized admin login attempt',
+  INACTIVE_OR_NOT_FOUND_USER: 'Inactive user ',
 };

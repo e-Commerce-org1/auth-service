@@ -39,7 +39,8 @@ message ValidateTokenRequest {
 
 message ValidateTokenResponse {
   bool isValid = 1;         
-  string entityId = 2;       
+  string entityId = 2;  
+  string role=3;     
 }
 
 

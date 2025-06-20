@@ -14,6 +14,7 @@ export interface ValidateAccessTokenRequest {
 export interface ValidateAccessTokenResponse {
   isValid: boolean;
   entityId: string;
+  role: string;
 }
 export interface AccessTokenRequest {
   refreshToken: string;
