@@ -22,7 +22,7 @@ export class JwtGuard implements CanActivate {
     private readonly redisService: RedisService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
     @InjectModel(Session.name) private readonly SessionModel: Model<Session>,
-  ) { }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const data = context.switchToRpc().getData();
@@ -47,7 +47,7 @@ export class JwtGuard implements CanActivate {
     }
 
     this.logger.debug('Token decoded', { entityId, deviceId, role });
-
+// Check if the access token exists in Redis
     const redisKey = RedisKeys.accessTokenKey(role, entityId, deviceId);
     const storedToken = await this.redisService.getAccessToken(redisKey);
 
@@ -55,7 +55,7 @@ export class JwtGuard implements CanActivate {
       this.logger.warn('No token found in Redis', { entityId, deviceId, role });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
-
+// check the user exists in the session collection
     const session = await this.SessionModel.findOne({
       entityId,
       deviceId,

@@ -14,7 +14,7 @@ import {
 } from '../providers/common/constants';
 @Controller()
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
   //generating token
   @GrpcMethod(GRPC_AUTH_SERVICE, AuthGrpcMethods.GET_TOKEN)
   async getToken(data: LoginRequest) {

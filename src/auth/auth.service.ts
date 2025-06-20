@@ -41,12 +41,12 @@ export class AuthService {
     private readonly userModel: Model<UserDocument>,
     private readonly redisService: RedisService,
   ) { }
-
+  // generating accesstoken and refresh token
   async getToken(loginRequest: LoginRequest): Promise<LoginResponse> {
     this.logger.info(LogMessages.LOGIN_ATTEMPT, {
       entityId: loginRequest.entityId,
     });
-
+// checking if the user exists in the database
     const user = await this.userModel.findById(loginRequest.entityId);
     let Role: 'admin' | 'user';
 
@@ -73,7 +73,7 @@ export class AuthService {
       { ...loginRequest, role: Role },
       'refresh',
     );
-
+  // storing access token in redis
     const accessTokenRedisKey = RedisKeys.accessTokenKey(
       Role,
       loginRequest.entityId,
@@ -104,7 +104,7 @@ export class AuthService {
 
     return { accessToken, refreshToken };
   }
-
+  // regenerting the access token
   async accessToken(
     refreshTokenRequest: AccessTokenRequest,
   ): Promise<AccessTokenResponse> {
@@ -119,7 +119,7 @@ export class AuthService {
     this.logger.debug(
       `${LogMessages.DECODED_REFRESH_TOKEN}: ${entityId}, deviceId: ${deviceId}, role: ${role}`,
     );
-
+// checking  for the activeSession
     const activeSession = await this.sessionModel.findOne({
       entityId,
       deviceId,
@@ -134,7 +134,7 @@ export class AuthService {
       });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED);
     }
-
+///generating new access token
     const newAccessToken = await this.generateJwtToken(
       {
         entityId,
@@ -144,7 +144,7 @@ export class AuthService {
       },
       'access',
     );
-
+//storing new access token in redis
     const accessTokenRedisKey = RedisKeys.accessTokenKey(
       role,
       entityId,
@@ -159,10 +159,10 @@ export class AuthService {
 
     return { accessToken: newAccessToken };
   }
-
+  //logout logic
   async logout(logoutRequest: LogoutRequest): Promise<LogoutResponse> {
     this.logger.info(LogMessages.LOGOUT_ATTEMPT);
-
+// decoding the access token
     const decodedAccessToken = this.jwtService.verify(
       logoutRequest.accessToken,
       {
@@ -176,15 +176,14 @@ export class AuthService {
       deviceId,
       role,
     });
-
+// deleting the access token from redis
     const accessTokenRedisKey = RedisKeys.accessTokenKey(
       role,
       entityId,
       deviceId,
     );
-
     await this.redisService.deleteAccessToken(accessTokenRedisKey);
-
+// updating the session status in the database
     await this.sessionModel.updateOne(
       { entityId, deviceId, role, active: true },
       { $set: { active: false } },
@@ -193,13 +192,13 @@ export class AuthService {
     this.logger.info(LogMessages.LOGOUT_SUCCESSFUL, { entityId });
     return { success: true };
   }
-
+  //validation of token
   async validateAccessToken(
     validateTokenRequest: ValidateAccessTokenRequest,
   ): Promise<ValidateAccessTokenResponse> {
     const { accessToken } = validateTokenRequest;
     this.logger.info(LogMessages.VALIDATING_ACCESS_TOKEN);
-
+// decoding the access token
     const decodedAccessToken = this.jwtService.verify(accessToken, {
       secret: JWT.ACCESS_TOKEN_SECRET,
     });
@@ -210,7 +209,7 @@ export class AuthService {
       deviceId,
       role,
     });
-
+// checking if the access token exists in redis
     const accessTokenRedisKey = RedisKeys.accessTokenKey(
       role,
       entityId,
@@ -230,7 +229,7 @@ export class AuthService {
       entityId,
     };
   }
-
+  //method to generate the token
   private async generateJwtToken(
     payload: {
       entityId: string;
