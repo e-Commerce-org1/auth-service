@@ -38,7 +38,7 @@ export const AUTHGRPCMETHODS = {
   VALIDATE_TOKEN: 'validateToken',
 };
 export const ADMIN_EMAIL = {
-  EMAIL: 'mahi.rajput@appinventiv.com',
+  EMAIL: 'bansalakshit0460@gmail.com',
 };
 export const ROLES = {
   ADMIN: 'admin',

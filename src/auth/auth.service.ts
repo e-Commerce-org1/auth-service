@@ -51,17 +51,28 @@ export class AuthService {
     this.logger.info(LogMessages.LOGIN_ATTEMPT, {
       entityId: loginRequest.entityId,
     });
-
-    //  if the user exists in the db
-    const user = await this.userModel.findById(loginRequest.entityId);
-    if (!user) {
-      throw new HttpException(
-        GRPC_ERROR_MESSAGES.USER_NOT_FOUND,
-        HTTP_STATUS_CODES.NOT_FOUND,
-      );
+  
+    let role: ROLETYPE;
+    let account: any;
+  
+    const isAdmin =loginRequest.email === ADMIN_EMAIL.EMAIL;
+  
+    if (isAdmin) {
+      role = ROLES.ADMIN;
+      account = { isActive: true }; 
+    } else {
+      account = await this.userModel.findById(loginRequest.entityId);
+      if (!account) {
+        throw new HttpException(
+          GRPC_ERROR_MESSAGES.USER_NOT_FOUND,
+          HTTP_STATUS_CODES.NOT_FOUND,
+        );
+      }
+      role = ROLES.USER;
     }
-
-    if (!user.isActive) {
+  
+    // Check if inactive
+    if (!account.isActive) {
       this.logger.warn(LogMessages.INACTIVE_USER_LOGIN_ATTEMPT, {
         entityId: loginRequest.entityId,
       });
@@ -70,42 +81,25 @@ export class AuthService {
         HTTP_STATUS_CODES.FORBIDDEN,
       );
     }
-    let Role: ROLETYPE = ROLES.USER;
-
-    const isAdminEmail = loginRequest.email === ADMIN_EMAIL.EMAIL;
-    if (isAdminEmail) {
-      Role = ROLES.ADMIN;
-    }
-
-    // Block unauthorized admin attempts
-    if (Role === ROLES.ADMIN && !isAdminEmail) {
-      this.logger.warn(LogMessages.UNAUTHORIZED_ADMIN_LOGIN_ATTEMPT, {
-        entityId: loginRequest.entityId,
-        email: loginRequest.email,
-      });
-      throw new HttpException(
-        GRPC_ERROR_MESSAGES.UNAUTHORIZED_ADMIN,
-        HTTP_STATUS_CODES.UNAUTHORIZED,
-      );
-    }
-
-    // Generate JWT tokens
+  
+    // Generate access & refresh tokens
     const accessToken = await this.generateJwtToken(
-      { ...loginRequest, role: Role },
+      { ...loginRequest, role },
       TOKEN_TYPES.ACCESS,
     );
+  
     const refreshToken = await this.generateJwtToken(
-      { ...loginRequest, role: Role },
+      { ...loginRequest, role },
       TOKEN_TYPES.REFRESH,
     );
-
+  
     const accessTokenRedisKey = RedisKeys.accessTokenKey(
-      Role,
+      role,
       loginRequest.entityId,
       loginRequest.deviceId,
     );
-
-    // Store access token and session in parallel
+  
+    // Store session and access token
     await Promise.all([
       this.redisService.storeAccessToken(
         accessToken,
@@ -116,21 +110,22 @@ export class AuthService {
         entityId: loginRequest.entityId,
         deviceId: loginRequest.deviceId,
         email: loginRequest.email,
-        role: Role,
+        role,
         refreshToken,
         active: true,
       }),
     ]);
-
+  
     this.logger.info(
-      Role === ROLES.ADMIN
+      role === ROLES.ADMIN
         ? LogMessages.ADMIN_LOGIN_SUCCESSFUL
         : LogMessages.LOGIN_SUCCESSFUL,
       { entityId: loginRequest.entityId },
     );
-
+  
     return { accessToken, refreshToken };
   }
+  
 
   // regenerting the access token
   async accessToken(
