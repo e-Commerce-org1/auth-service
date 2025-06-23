@@ -53,43 +53,46 @@ export class AuthService {
     });
   
     let role: ROLETYPE;
-    let account: any;
+    let emailToUse = loginRequest.email;
   
-    const isAdmin =loginRequest.email === ADMIN_EMAIL.EMAIL;
+    // Try to find the user first
+    const user = await this.userModel.findById(loginRequest.entityId);
   
-    if (isAdmin) {
-      role = ROLES.ADMIN;
-      account = { isActive: true }; 
+    if (user) {
+      if (!user.isActive) {
+        this.logger.warn(LogMessages.INACTIVE_USER_LOGIN_ATTEMPT, {
+          entityId: loginRequest.entityId,
+        });
+        throw new HttpException(
+          GRPC_ERROR_MESSAGES.USER_INACTIVE,
+          HTTP_STATUS_CODES.FORBIDDEN,
+        );
+      }
+      role = ROLES.USER;
+      emailToUse = user.email;
     } else {
-      account = await this.userModel.findById(loginRequest.entityId);
-      if (!account) {
+      // User not found, check if it's admin
+      const isAdmin = loginRequest.email === ADMIN_EMAIL.EMAIL;
+  
+      if (!isAdmin) {
         throw new HttpException(
           GRPC_ERROR_MESSAGES.USER_NOT_FOUND,
           HTTP_STATUS_CODES.NOT_FOUND,
         );
       }
-      role = ROLES.USER;
-    }
   
-    // Check if inactive
-    if (!account.isActive) {
-      this.logger.warn(LogMessages.INACTIVE_USER_LOGIN_ATTEMPT, {
-        entityId: loginRequest.entityId,
-      });
-      throw new HttpException(
-        GRPC_ERROR_MESSAGES.USER_INACTIVE,
-        HTTP_STATUS_CODES.FORBIDDEN,
-      );
+      role = ROLES.ADMIN;
+      emailToUse = ADMIN_EMAIL.EMAIL;
     }
   
     // Generate access & refresh tokens
     const accessToken = await this.generateJwtToken(
-      { ...loginRequest, role },
+      { ...loginRequest, email: emailToUse, role },
       TOKEN_TYPES.ACCESS,
     );
   
     const refreshToken = await this.generateJwtToken(
-      { ...loginRequest, role },
+      { ...loginRequest, email: emailToUse, role },
       TOKEN_TYPES.REFRESH,
     );
   
@@ -99,7 +102,7 @@ export class AuthService {
       loginRequest.deviceId,
     );
   
-    // Store session and access token
+    // Store session and token
     await Promise.all([
       this.redisService.storeAccessToken(
         accessToken,
@@ -109,7 +112,7 @@ export class AuthService {
       this.sessionModel.create({
         entityId: loginRequest.entityId,
         deviceId: loginRequest.deviceId,
-        email: loginRequest.email,
+        email: emailToUse,
         role,
         refreshToken,
         active: true,
@@ -125,6 +128,7 @@ export class AuthService {
   
     return { accessToken, refreshToken };
   }
+  
   
 
   // regenerting the access token
@@ -219,35 +223,44 @@ export class AuthService {
   ): Promise<ValidateAccessTokenResponse> {
     const { accessToken } = validateTokenRequest;
     this.logger.info(LogMessages.VALIDATING_ACCESS_TOKEN);
-
-    // Decoded and verify access token
+  
+    // Decode and verify token
     const decodedAccessToken = this.jwtService.verify(accessToken, {
       secret: JWT.ACCESS_TOKEN_SECRET,
     });
-
-    const { entityId, deviceId, role } = decodedAccessToken;
+  
+    const { entityId, deviceId, role, email } = decodedAccessToken;
+  
     this.logger.debug(LogMessages.DECODED_ACCESS_TOKEN, {
       entityId,
       deviceId,
       role,
+      email,
     });
-
-    //  Fetch user and check if active
-    const user = await this.userModel.findById(entityId);
-    if (!user || !user.isActive) {
-      this.logger.warn(LogMessages.INACTIVE_OR_NOT_FOUND_USER, { entityId });
-      throw new UnauthorizedException(GRPC_ERROR_MESSAGES.USER_INACTIVE);
+  
+    const isAdmin =
+      role === ROLES.ADMIN &&
+      email === ADMIN_EMAIL.EMAIL;
+  
+    if (!isAdmin) {
+      // Regular user - validate from DB
+      const user = await this.userModel.findById(entityId);
+      if (!user || !user.isActive) {
+        this.logger.warn(LogMessages.INACTIVE_OR_NOT_FOUND_USER, { entityId });
+        throw new UnauthorizedException(GRPC_ERROR_MESSAGES.USER_INACTIVE);
+      }
+  
+      if (role === ROLES.ADMIN) {
+        // User is impersonating admin
+        this.logger.warn(LogMessages.UNAUTHORIZED_ADMIN_LOGIN_ATTEMPT, {
+          entityId,
+          email: user.email,
+        });
+        throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED_ADMIN);
+      }
     }
-
-    //  Admin email check
-    if (role === ROLES.ADMIN && user.email !== ADMIN_EMAIL.EMAIL) {
-      this.logger.warn(LogMessages.UNAUTHORIZED_ADMIN_LOGIN_ATTEMPT, {
-        entityId,
-        email: user.email,
-      });
-      throw new UnauthorizedException(GRPC_ERROR_MESSAGES.UNAUTHORIZED_ADMIN);
-    }
-    //  Redis token match
+  
+    // Check if token matches the one in Redis
     const accessTokenRedisKey = RedisKeys.accessTokenKey(
       role,
       entityId,
@@ -255,20 +268,21 @@ export class AuthService {
     );
     const storedAccessToken =
       await this.redisService.getAccessToken(accessTokenRedisKey);
-
+  
     if (storedAccessToken !== accessToken) {
       this.logger.warn(LogMessages.ACCESS_TOKEN_MISMATCH, { entityId });
       throw new UnauthorizedException(GRPC_ERROR_MESSAGES.INVALID_TOKEN);
     }
-
+  
     this.logger.info(LogMessages.ACCESS_TOKEN_VALID, { entityId });
-
+  
     return {
       isValid: true,
       entityId,
       role,
     };
   }
+  
 
   //method to generate the token
   private async generateJwtToken(

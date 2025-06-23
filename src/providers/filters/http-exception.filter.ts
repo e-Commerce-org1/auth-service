@@ -1,54 +1,38 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
-  HttpStatus,
-  Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { RpcException } from '@nestjs/microservices';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(GlobalExceptionFilter.name);
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctxType = host.getType();
 
-  catch(exception: unknown, host: ArgumentsHost): void {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    if (ctxType === 'http') {
+      const response = host.switchToHttp().getResponse();
+      const status =
+        exception instanceof HttpException ? exception.getStatus() : 500;
 
-    let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let stack: string | undefined;
-
-    if (exception instanceof HttpException) {
-      statusCode = exception.getStatus();
-      const res = exception.getResponse();
-
-      if (typeof res === 'string') {
-        message = res;
-      } else if (typeof res === 'object' && res !== null) {
-        const resObj = res as { message?: string | string[] };
-        if (Array.isArray(resObj.message)) {
-          message = resObj.message.join(', ');
-        } else if (typeof resObj.message === 'string') {
-          message = resObj.message;
-        }
-      }
-      stack = (exception as any).stack;
-    } else if (exception instanceof Error) {
-      message = exception.message;
-      stack = exception.stack;
+      response.status(status).json({
+        statusCode: status,
+        message:
+          exception instanceof HttpException
+            ? exception.message
+            : 'Internal server error',
+      });
     }
 
-    this.logger.error(`[${request.method}] ${request.url} - ${message}`, stack);
-
-    response.status(statusCode).json({
-      statusCode,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      method: request.method,
-      message,
-    });
+    if (ctxType === 'rpc') {
+      // gRPC expects an RpcException to be thrown
+      throw new RpcException(
+        exception instanceof HttpException
+          ? exception.message
+          : 'Internal server error',
+      );
+    }
   }
 }
